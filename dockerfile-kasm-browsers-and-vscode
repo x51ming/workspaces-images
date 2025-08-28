@@ -1,0 +1,49 @@
+ARG BASE_TAG="develop"
+ARG BASE_IMAGE="core-ubuntu-jammy"
+
+FROM kasmweb/$BASE_IMAGE:$BASE_TAG
+USER root
+
+ENV HOME /home/kasm-default-profile
+ENV STARTUPDIR /dockerstartup
+ENV INST_SCRIPTS $STARTUPDIR/install
+ENV DONT_PROMPT_WSL_INSTALL "No_Prompt_please"
+WORKDIR $HOME
+
+######### Customize Container Here ###########
+
+# Install Google Chrome
+COPY ./src/ubuntu/install/chrome $INST_SCRIPTS/chrome/
+RUN bash $INST_SCRIPTS/chrome/install_chrome.sh  && rm -rf $INST_SCRIPTS/chrome/
+
+# Install Microsoft Edge
+COPY ./src/ubuntu/install/edge $INST_SCRIPTS/edge/
+RUN bash $INST_SCRIPTS/edge/install_edge.sh  && rm -rf $INST_SCRIPTS/edge/
+
+# Install Firefox
+COPY ./src/ubuntu/install/firefox/ $INST_SCRIPTS/firefox/
+COPY ./src/ubuntu/install/firefox/firefox.desktop $HOME/Desktop/
+RUN bash $INST_SCRIPTS/firefox/install_firefox.sh && rm -rf $INST_SCRIPTS/firefox/
+
+# Install Visual Studio Code
+COPY ./src/ubuntu/install/vs_code $INST_SCRIPTS/vs_code/
+RUN bash $INST_SCRIPTS/vs_code/install_vs_code.sh  && rm -rf $INST_SCRIPTS/vs_code/
+
+# Allow sudo
+RUN echo "" >> /etc/sudoers && echo "kasm-user ALL=(ALL:ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+######### End Customizations ###########
+
+RUN chown 1000:0 $HOME
+
+ENV HOME /home/kasm-user
+WORKDIR $HOME
+RUN mkdir -p $HOME && chown -R 1000:0 $HOME
+
+USER 1000
+
+SHELL [ "/bin/bash", "-c" ]
+
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash 
+ENV NVM_DIR="$HOME/.nvm"
+RUN source $NVM_DIR/nvm.sh && nvm install 22 && echo "registry=https://registry.npmmirror.com/" > "$HOME/.npmrc" && echo "source $NVM_DIR/nvm.sh" >> "/home/kasm-default-profile/.bashrc" && mkdir -pv $HOME/.cache/Cypress
