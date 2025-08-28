@@ -24,7 +24,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: nolva/vscode-allinone
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/vscode-allinone
 
 jobs:
   build-and-push:
@@ -47,33 +47,68 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_TOKEN }}
 
-    - name: Extract metadata
-      id: meta
+    - name: Extract metadata for basic tag
+      id: meta-basic
       uses: docker/metadata-action@v5
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
+          type=ref,event=branch,suffix=-basic
+          type=ref,event=pr,suffix=-basic
+          type=sha,prefix={{branch}}-basic-
+          type=raw,value=basic,enable={{is_default_branch}}
+          type=raw,value=${{ github.event.inputs.tag }}-basic,enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
+
+    - name: Extract metadata for full tag
+      id: meta-full
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch,suffix=-full
+          type=ref,event=pr,suffix=-full
+          type=sha,prefix={{branch}}-full-
+          type=raw,value=full,enable={{is_default_branch}}
           type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=${{ github.event.inputs.tag }}-full,enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
           type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag != '' }}
 
-    - name: Build and push Docker image
+    - name: Build and push Docker image with basic tag
       uses: docker/build-push-action@v5
       with:
         context: .
         file: ./dockerfile-kasm-browsers-and-vscode
+        target: basic
         platforms: linux/amd64
         push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
+        tags: ${{ steps.meta-basic.outputs.tags }}
+        labels: ${{ steps.meta-basic.outputs.labels }}
         build-args: |
           BASE_IMAGE=core-ubuntu-noble
           BASE_TAG=1.16.0
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push Docker image with full tag
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./dockerfile-kasm-browsers-and-vscode
+        target: full
+        platforms: linux/amd64
+        push: true
+        tags: ${{ steps.meta-full.outputs.tags }}
+        labels: ${{ steps.meta-full.outputs.labels }}
+        build-args: |
+          BASE_IMAGE=core-ubuntu-noble
+          BASE_TAG=1.16.0
+          NVM_VERSION=v0.40.3
           NODE_VERSION=22
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    - name: Image digest
-      run: echo ${{ steps.build.outputs.digest }}
+    - name: Output image information
+      run: |
+        echo "Docker image built and pushed successfully with tags:"
+        echo "Basic tags: ${{ steps.meta-basic.outputs.tags }}"
+        echo "Full tags: ${{ steps.meta-full.outputs.tags }}"

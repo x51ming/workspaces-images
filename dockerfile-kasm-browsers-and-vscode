@@ -1,7 +1,7 @@
 ARG BASE_TAG="develop"
 ARG BASE_IMAGE="core-ubuntu-jammy"
 
-FROM kasmweb/$BASE_IMAGE:$BASE_TAG
+FROM kasmweb/$BASE_IMAGE:$BASE_TAG AS base
 USER root
 
 ENV HOME /home/kasm-default-profile
@@ -42,8 +42,19 @@ RUN mkdir -p $HOME && chown -R 1000:0 $HOME
 
 USER 1000
 
+# Stage 1: Basic image (browsers + VS Code only)
+FROM base AS basic
+
+# Stage 2: Full development image (browsers + VS Code + Node.js)
+FROM base AS full
+ARG NVM_VERSION="v0.40.3"
+ARG NODE_VERSION="22"
+
 SHELL [ "/bin/bash", "-c" ]
 
-RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash 
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | bash 
 ENV NVM_DIR="$HOME/.nvm"
-RUN source $NVM_DIR/nvm.sh && nvm install 22 && echo "registry=https://registry.npmmirror.com/" > "$HOME/.npmrc" && echo "source $NVM_DIR/nvm.sh" >> "/home/kasm-default-profile/.bashrc" && mkdir -pv $HOME/.cache/Cypress
+RUN source $NVM_DIR/nvm.sh && nvm install ${NODE_VERSION} && echo "registry=https://registry.npmmirror.com/" > "$HOME/.npmrc" && echo "source $NVM_DIR/nvm.sh" >> "/home/kasm-default-profile/.bashrc" && mkdir -pv $HOME/.cache/Cypress
+
+# Default stage (can be overridden with --target)
+FROM full
